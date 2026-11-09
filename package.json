@@ -1,0 +1,26 @@
+{
+  "name": "nahtreek-platform",
+  "version": "1.0.0",
+  "private": true,
+  "description": "NAHTREEK - Property Services Marketplace Platform (From Plot to World)",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:api": "npm run start:dev --workspace=apps/production-Api",
+    "dev:client": "npm run start --workspace=apps/production-Home",
+    "build:api": "npm run build --workspace=apps/production-Api",
+    "test:api": "npm run test --workspace=apps/production-Api",
+    "db:migrate": "npm run db:migrate --workspace=apps/production-Api",
+    "db:studio": "npm run db:studio --workspace=apps/production-Api"
+  },
+  "overrides": {
+    "react-native-screens": "4.4.0",
+    "react-native-reanimated": "3.15.0"
+  },
+  "devDependencies": {
+    "react-native-screens": "4.4.0",
+    "typescript": "^5.3.3"
+  }
+}

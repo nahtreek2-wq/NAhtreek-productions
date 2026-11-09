@@ -1,0 +1,81 @@
+# Manual production Android build. Trigger from GitHub Actions → Run workflow.
+# Reproduces deployments/production/mobile/RELEASE_RUNBOOK.md with no laptop.
+#
+# Required repository secrets (Settings → Secrets → Actions):
+#   ANDROID_KEYSTORE_BASE64_<CLIENT|PRO>  base64 of nahtreek-release.keystore
+#   ANDROID_KEY_ALIAS                      nahtreek
+#   ANDROID_STORE_PASSWORD_<CLIENT|PRO>    keystore passwords from the vault
+#   PROD_API_BASE_URL                      https://api.nahtreek.com/api/v1
+#   PROD_GEOAPIFY_KEY                      production Geoapify key
+#   PROD_GOOGLE_SERVICES_<CLIENT|PRO>      base64 of src/release/google-services.json
+name: release-android
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_name:
+        description: Version name (e.g. 1.0.0)
+        required: true
+        default: 1.0.0
+      version_code:
+        description: Monotonic version code (Play rejects reuse/backwards)
+        required: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        app: [production-Home, production-Pro]
+    env:
+      JAVA_HOME: /usr/lib/jvm/temurin-17-jdk-amd64
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v4
+      - run: npm ci
+
+      - name: Restore keystore and Firebase config
+        working-directory: apps/${{ matrix.app }}
+        env:
+          KEYSTORE_B64: ${{ matrix.app == 'production-Home' && secrets.ANDROID_KEYSTORE_BASE64_CLIENT || secrets.ANDROID_KEYSTORE_BASE64_PRO }}
+          GOOGLE_SERVICES_B64: ${{ matrix.app == 'production-Home' && secrets.PROD_GOOGLE_SERVICES_CLIENT || secrets.PROD_GOOGLE_SERVICES_PRO }}
+        run: |
+          echo "$KEYSTORE_B64" | base64 -d > android/app/nahtreek-release.keystore
+          echo "$GOOGLE_SERVICES_B64" | base64 -d > android/app/src/release/google-services.json
+
+      - name: Build signed AAB + APK
+        working-directory: apps/${{ matrix.app }}
+        env:
+          NAHTREEK_SIGNING_FILE: ${{ github.workspace }}/apps/${{ matrix.app }}/android/app/nahtreek-release.keystore
+          NAHTREEK_SIGNING_PASSWORD: ${{ matrix.app == 'production-Home' && secrets.ANDROID_STORE_PASSWORD_CLIENT || secrets.ANDROID_STORE_PASSWORD_PRO }}
+          NAHTREEK_SIGNING_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          GEOAPIFY_API_KEY: ${{ secrets.PROD_GEOAPIFY_KEY }}
+        run: |
+          ./android/gradlew -p android app:bundleRelease app:assembleRelease \
+            -PNAHTREEK_API_BASE_URL='${{ secrets.PROD_API_BASE_URL }}' \
+            -PNAHTREEK_VERSION_CODE='${{ inputs.version_code }}' \
+            -PNAHTREEK_VERSION_NAME='${{ inputs.version_name }}'
+
+      - name: Verify signatures
+        working-directory: apps/${{ matrix.app }}
+        run: |
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose \
+            android/app/build/outputs/apk/release/app-release.apk | tee signature.txt
+          grep -q '^Verifies$' signature.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.app }}-${{ inputs.version_name }}-${{ inputs.version_code }}
+          path: |
+            apps/${{ matrix.app }}/android/app/build/outputs/bundle/release/*.aab
+            apps/${{ matrix.app }}/android/app/build/outputs/apk/release/*.apk
+            apps/${{ matrix.app }}/signature.txt
+          retention-days: 90
