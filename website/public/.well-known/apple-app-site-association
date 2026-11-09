@@ -1,0 +1,11 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appID": "9X39TCNY2A.com.nahtreek.client",
+        "paths": ["/p/*"]
+      }
+    ]
+  }
+}

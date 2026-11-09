@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.nahtreek.client",
+      "sha256_cert_fingerprints": [
+        "92:E0:B8:4A:A0:7C:2D:9F:CB:2B:00:1E:4E:1B:F6:68:F5:62:EA:38:28:51:15:73:03:1A:D0:21:B2:6F:4E:C8"
+      ]
+    }
+  }
+]
