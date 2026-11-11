@@ -160,6 +160,8 @@ export function MessagesScreen() {
             message="Check your connection and try again."
           />
           <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Retry loading conversations"
             onPress={() => conversations.refetch()}
             style={styles.retry}>
             <Text style={styles.retryText}>Try again</Text>
@@ -314,7 +316,7 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     paddingHorizontal: 4,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#DCE2EA',
+    borderBottomColor: ProColors.border,
   },
   pressed: {opacity: 0.82},
   avatar: {

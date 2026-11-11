@@ -46,12 +46,12 @@ const steps = [
 ];
 const faqs = [
   [
-    "Are the apps live?",
-    "Yes — NAHTREEK Home and NAHTREEK Pro are live. Bookings, chat, tracking and AI planning all work in the apps today.",
+    "How do I get the apps?",
+    "The apps are in early access. Contact us and the team will onboard you — bookings, chat, tracking and AI planning all work in the apps today.",
   ],
   [
     "What does NAHTREEK AI cost?",
-    "Your first 5 AI chats are free. Unlimited chats, plans and photo analysis cost ₹99/month in the Home app, cancellable anytime.",
+    "Your first 5 AI chats are free. Unlimited chats, plans and photo analysis cost ₹129/month in the Home app, cancellable anytime.",
   ],
   [
     "Does NAHTREEK certify engineering work?",

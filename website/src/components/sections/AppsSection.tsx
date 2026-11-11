@@ -51,11 +51,8 @@ export function AppsSection() {
       </div>
       <Reveal delay={0.15}>
         <p className="availability-note">
-          <strong>
-            <span className="pulse" aria-hidden="true" />
-            Available now
-          </strong>
-          <span>Both apps are live — get started today.</span>
+          <strong>Early access</strong>
+          <span>Both apps are in early access — contact us and the team will onboard you.</span>
         </p>
       </Reveal>
     </Section>

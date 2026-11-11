@@ -23,7 +23,6 @@ export function Logo({
         width={58}
         height={58}
         alt=""
-        unoptimized
       />
       {showText && (
         <span>

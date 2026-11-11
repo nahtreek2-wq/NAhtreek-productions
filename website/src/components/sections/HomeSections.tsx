@@ -10,12 +10,12 @@ export function HomeFaqSection() {
         <FAQ
           items={[
             [
-              "Are the NAHTREEK apps live?",
-              "Yes — NAHTREEK Home and NAHTREEK Pro are live. Contact us and the team will onboard you.",
+              "How do I get the NAHTREEK apps?",
+              "NAHTREEK Home and Pro are in early access. Contact us and the team will onboard you.",
             ],
             [
               "What does NAHTREEK AI actually do?",
-              "It turns a rough description — optionally with site photos — into a structured plan: what it understood, what to do first, what to watch out for, and the one question that matters most. 5 chats are free; unlimited plans cost ₹99/month.",
+              "It turns a rough description — optionally with site photos — into a structured plan: what it understood, what to do first, what to watch out for, and the one question that matters most. 5 chats are free; unlimited plans cost ₹129/month.",
             ],
             [
               "How are professionals verified?",

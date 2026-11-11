@@ -64,7 +64,7 @@ export class SubmitPayoutAccountDto {
   @IsString() @Matches(/^[0-9]{9,18}$/) accountNumber: string;
   @IsString() @Matches(/^[A-Za-z]{4}0[A-Za-z0-9]{6}$/) ifsc: string;
   @IsOptional() @IsString() @MaxLength(120) bankName?: string;
-  @IsOptional() @IsString() @MaxLength(80) @Matches(/^[\w.\-]{2,64}@[A-Za-z]{2,32}$/) upiId?: string;
+  @IsOptional() @IsString() @MaxLength(80) @Matches(/^[\w.-]{2,64}@[A-Za-z]{2,32}$/) upiId?: string;
 }
 
 export class RegisterPayoutAccountDto {
@@ -73,4 +73,9 @@ export class RegisterPayoutAccountDto {
   @IsString() @MinLength(2) @MaxLength(120) accountHolderName: string;
   @IsString() @MaxLength(120) bankName?: string;
   @IsString() @Matches(/^[0-9]{4}$/) accountLast4?: string;
+}
+
+export class ReviewPayoutAccountDto {
+  @IsIn(['suspend', 'reject', 'clear']) decision: 'suspend' | 'reject' | 'clear';
+  @IsOptional() @IsString() @MaxLength(500) note?: string;
 }

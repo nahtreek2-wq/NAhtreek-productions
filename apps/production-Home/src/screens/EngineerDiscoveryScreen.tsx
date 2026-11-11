@@ -9,17 +9,18 @@ import {
   StyleSheet,
 } from 'react-native';
 import Animated, {FadeInDown, ReduceMotion} from 'react-native-reanimated';
+import {Motion, stagger} from '../../../../packages/mobile-ui/motion';
 import {useNavigation, useRoute, type RouteProp} from '@react-navigation/native';
 import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
-import {useBottomTabBarHeight} from '@react-navigation/bottom-tabs';
+import {useOptionalTabBarHeight} from '../hooks/useOptionalTabBarHeight';
 import {
   Colors,
   Typography,
   Spacing,
   BorderRadius,
-  IndiaLocale,
 } from '@nahtreek/design-system';
+import {inr} from '../utils/format';
 import {
   AppHeader,
   Avatar,
@@ -50,6 +51,7 @@ import {portraitFor} from '../assets/imagery';
 import type {RootStackParamList} from '../navigation/types';
 import {useSessionStore} from '../stores/session';
 import {useCity} from '../stores/city';
+import {useListFilters} from '../stores/listFilters';
 import {useServiceCategories} from '../services/platformQueries';
 import {ClientColors} from '../design-system/tokens';
 import {iconographyForService} from '../../../../packages/mobile-ui/serviceIconography';
@@ -105,7 +107,7 @@ export function EngineerDiscoveryScreen() {
   const requestPlanQuotes = usePlanQuoteRequest();
   const isTabScreen = (navigation.getState() as {type: string}).type === 'tab';
   const insets = useSafeAreaInsets();
-  const tabBarHeight = useBottomTabBarHeight();
+  const tabBarHeight = useOptionalTabBarHeight();
   const city = useCity(state => state.city);
   const selectedState = useCity(state => state.state);
   const setCity = useCity(state => state.setCity);
@@ -113,9 +115,12 @@ export function EngineerDiscoveryScreen() {
   const isGuest = useSessionStore(state => state.isGuest);
   const updateProfile = useUpdateClientProfile();
   const cityName = city.split(',')[0]?.trim() || 'your area';
-  const [mode, setMode] = useState<'engineers' | 'services'>('engineers');
-  const [filter, setFilter] = useState('All');
-  const [sort, setSort] = useState('Top Rated');
+  const mode = useListFilters(state => state.discoveryMode);
+  const setMode = useListFilters(state => state.setDiscoveryMode);
+  const filter = useListFilters(state => state.discoveryFilter);
+  const setFilter = useListFilters(state => state.setDiscoveryFilter);
+  const sort = useListFilters(state => state.discoverySort);
+  const setSort = useListFilters(state => state.setDiscoverySort);
   const [geo, setGeo] = useState<{latitude: number; longitude: number} | undefined>();
   const [geoLoading, setGeoLoading] = useState(false);
   const pickSort = async (option: string) => {
@@ -269,7 +274,7 @@ export function EngineerDiscoveryScreen() {
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={
           <>
-            <Animated.View entering={FadeInDown.duration(320).reduceMotion(ReduceMotion.System)} style={styles.findIntro}>
+            <Animated.View entering={FadeInDown.duration(Motion.entrance).reduceMotion(ReduceMotion.System)} style={styles.findIntro}>
               <Pressable
                 style={styles.searchAction}
                 accessibilityRole="button"
@@ -353,7 +358,7 @@ export function EngineerDiscoveryScreen() {
                         <Icon
                           name={category.icon}
                           size={15}
-                          color={selected ? Colors.white : '#2563EB'}
+                          color={selected ? Colors.white : Colors.interactiveBlue}
                         />
                         <Text
                           numberOfLines={1}
@@ -411,7 +416,7 @@ export function EngineerDiscoveryScreen() {
                     const iconography = iconographyForService(`${service.title} ${service.group}`);
                     return <Animated.View
                       key={service.id}
-                      entering={FadeInDown.duration(280).delay(Math.min(index * 35, 210)).reduceMotion(ReduceMotion.System)}>
+                      entering={FadeInDown.duration(Motion.entrance).delay(stagger(index)).reduceMotion(ReduceMotion.System)}>
                     <Pressable
                       accessibilityRole="button"
                       accessibilityLabel={`Open ${service.title}`}
@@ -675,13 +680,13 @@ function EngineerRow({
               style={styles.fee}
               numberOfLines={1}
               accessibilityLabel={
-                engineer.consultationFee == null
+                engineer.consultationFeePaisa == null
                   ? 'Consultation fee on request'
-                  : `Consultation fee ${IndiaLocale.formatCurrency(engineer.consultationFee)}`
+                  : `Consultation fee ${inr(engineer.consultationFeePaisa)}`
               }>
-              {engineer.consultationFee == null
+              {engineer.consultationFeePaisa == null
                 ? 'Fee on request'
-                : IndiaLocale.formatCurrency(engineer.consultationFee)}
+                : inr(engineer.consultationFeePaisa)}
               <Text style={styles.feeSuffix}> · Consultation</Text>
             </Text>
             <Button
@@ -700,13 +705,13 @@ const styles = StyleSheet.create({
   findHeader: {paddingBottom: 20, paddingRight: Spacing.md},
   planBanner: {flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6, marginHorizontal: Spacing.lg, marginTop: Spacing.sm},
   planBannerText: {...Typography.caption, color: ClientColors.accentText, fontWeight: '700', flex: 1},
-  changeCityButton: {height: 44, minWidth: 116, paddingHorizontal: 12, borderRadius: 22, backgroundColor: '#FFFFFF', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6},
+  changeCityButton: {height: 44, minWidth: 116, paddingHorizontal: 12, borderRadius: 22, backgroundColor: ClientColors.white, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6},
   changeCityText: {fontSize: 12, fontWeight: '700', color: Colors.navyDeep},
   cityOption: {minHeight: 50, flexDirection: 'row', alignItems: 'center', gap: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: Colors.slate200},
   cityOptionText: {...Typography.body, flex: 1, color: Colors.slate900},
   container: {
     flex: 1,
-    backgroundColor: '#F3F5F8',
+    backgroundColor: ClientColors.lightBackground,
   },
   filterControls: {flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.sm, marginBottom: Spacing.xs},
   filterButton: {flex: 1, minWidth: 0, minHeight: 48, paddingHorizontal: Spacing.sm, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 5, backgroundColor: Colors.white, borderWidth: 1, borderColor: Colors.slate200, borderRadius: BorderRadius.md},
@@ -715,7 +720,7 @@ const styles = StyleSheet.create({
   filterOptionText: {...Typography.body, color: Colors.slate900},
   findIntro: {
     paddingTop: 4,
-    backgroundColor: '#F3F5F8',
+    backgroundColor: ClientColors.lightBackground,
   },
   modeSwitch: {
     minHeight: 52,

@@ -23,12 +23,12 @@ export default function HomePage() {
         title="From plot to home,"
         accent="handled."
         intro="NAHTREEK connects you with verified civil engineers and home-service professionals — plan with AI, agree scope in-app, and track every job to handover."
-        primary={{ href: "/for-clients", label: "Get the Home app" }}
+        primary={{ href: "/for-clients", label: "Explore the Home app" }}
         secondary={{ href: "/for-professionals", label: "I'm a professional" }}
         stats={[
           { value: "100%", label: "Verified pros only" },
           { value: "8+", label: "Service categories" },
-          { value: "₹99", label: "AI planner /month" },
+          { value: "₹129", label: "AI planner /month" },
         ]}
         visual={
           <div className="hero-card">

@@ -84,8 +84,8 @@ export default function AboutPage() {
           eyebrow="Where we are today"
           title="Growing city by city."
         >
-          Both apps are live. Get started, plan your
-          project with AI, and book verified pros in
+          Both apps are in early access. Talk to us to plan your
+          project with AI and book verified pros in
           your area.
         </Heading>
         <p className="notice">

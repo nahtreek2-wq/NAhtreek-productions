@@ -4,7 +4,7 @@ import { Heading, Section, Action, Reveal } from "@/components/marketing/Primiti
 const plans = [
   {
     name: "NAHTREEK AI",
-    price: "₹99",
+    price: "₹129",
     period: "/month",
     tagline: "For homeowners planning a project in the Home app.",
     features: [

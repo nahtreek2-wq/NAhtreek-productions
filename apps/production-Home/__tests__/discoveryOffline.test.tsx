@@ -19,7 +19,7 @@ jest.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({top: 0, bottom: 0, left: 0, right: 0}),
 }));
 jest.mock('@react-navigation/bottom-tabs', () => ({
-  useBottomTabBarHeight: () => 0,
+  useBottomTabBarHeight: jest.fn(() => 0),
 }));
 jest.mock('../src/services/queries', () => ({
   useEngineList: () => mockEngineListState,
@@ -109,6 +109,20 @@ describe('EngineerDiscoveryScreen offline banner', () => {
     expect(copy).not.toContain('Try again');
     expect(copy).toContain('0 found');
   });
+
+  it('renders on a stack route where no tab bar exists', () => {
+    // Saved/Search/Requests push the stack route: the raw tab-height hook
+    // throws there, which used to land users on an error page.
+    const tabs = jest.requireMock('@react-navigation/bottom-tabs') as {useBottomTabBarHeight: jest.Mock};
+    tabs.useBottomTabBarHeight.mockImplementationOnce(() => {
+      throw new Error("Couldn't find the bottom tab bar height. Are you inside a screen in Bottom Tab Navigator?");
+    });
+    const screen = renderDiscovery();
+    const copy = texts(screen);
+    expect(copy).toContain('Find');
+    expect(copy).toContain('0 found');
+    renderer.act(() => screen.unmount());
+  });
 });
 
 describe('EngineerRow targets', () => {
@@ -130,7 +144,7 @@ describe('EngineerRow targets', () => {
     distanceKm: 3,
     nextSlot: 'Tomorrow 10:00',
     bio: 'Safe designs for homes.',
-    consultationFee: 499,
+    consultationFeePaisa: 49900,
   };
 
   beforeEach(() => {

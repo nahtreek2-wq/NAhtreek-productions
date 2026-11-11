@@ -16,6 +16,7 @@ import {useSessionStore} from '../stores/session';
 import {useQueryClient} from '@tanstack/react-query';
 import {queryKeys} from '../services/queries';
 import {isApiConfigured} from '../services/config';
+import {ClientColors} from '../design-system/tokens';
 
 type ChatRoute = RouteProp<RootStackParamList, 'Chat'>;
 
@@ -86,14 +87,29 @@ export function ChatScreen() {
     const content = draft.trim();
     if (!content || pending.current) return;
     pending.current = true;
+    // Optimistic bubble: the message appears instantly with a local id; the
+    // server echo (or socket event) replaces it by id, and a failure pulls
+    // it back out while restoring the draft for retry. Same pattern as the
+    // Pro chat — ids make double-apply impossible.
+    const localId = `local-${Date.now()}`;
+    const optimistic: MessageDto = {id: localId, conversationId,
+      senderUserId: currentUser?.id ?? 'me', senderName: currentUser?.fullName ?? 'You',
+      content, createdAt: new Date().toISOString()};
+    client.setQueryData<MessageDto[]>(queryKeys.messages(conversationId), (previous: MessageDto[] | undefined) =>
+      [...(previous ?? []), optimistic].sort((a, b) => a.createdAt.localeCompare(b.createdAt)));
+    setDraft(current => current.trim() === content ? '' : current);
     sendMut.mutate({conversationId, content}, {
       onSuccess: message => {
         client.setQueryData<MessageDto[]>(queryKeys.messages(conversationId), (previous: MessageDto[] | undefined) =>
-          [...(previous ?? []).filter((item: MessageDto) => item.id !== message.id), message]
+          [...(previous ?? []).filter((item: MessageDto) => item.id !== message.id && item.id !== localId), message]
             .sort((a, b) => a.createdAt.localeCompare(b.createdAt)));
-        setDraft(current => current.trim() === content ? '' : current);
       },
-      onError: () => toast('Message not sent. Your text is kept below; tap Send to retry.', 'error'),
+      onError: () => {
+        client.setQueryData<MessageDto[]>(queryKeys.messages(conversationId), (previous: MessageDto[] | undefined) =>
+          (previous ?? []).filter((item: MessageDto) => item.id !== localId));
+        setDraft(current => (current ? current : content));
+        toast('Message not sent. Your text is kept below; tap Send to retry.', 'error');
+      },
       onSettled: () => { pending.current = false; },
     });
   };
@@ -160,7 +176,7 @@ export function ChatScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F3F5F8',
+    backgroundColor: ClientColors.lightBackground,
   },
   flex: {
     flex: 1,

@@ -1,5 +1,5 @@
 import React from 'react';
-import {Pressable, Text} from 'react-native';
+import {Pressable} from 'react-native';
 import renderer from 'react-test-renderer';
 
 let mockRouteParams: {serviceId?: string} = {};
@@ -36,6 +36,9 @@ jest.mock('../src/components/ui', () => ({
       Button: ({label, onPress}: {label: string; onPress: () => void}) => (
         <NativeText onPress={onPress}>{label}</NativeText>
       ),
+      EmptyState: ({title}: {title: string}) => <NativeText>{title}</NativeText>,
+      ErrorState: ({title}: {title: string}) => <NativeText>{title}</NativeText>,
+      SectionHeader: ({title}: {title: string}) => <NativeText>{title}</NativeText>,
       Icon: () => null,
       ICONS: {chevronRight: 'chevronRight'},
     };

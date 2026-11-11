@@ -1,9 +1,9 @@
 import {FormScrollView, useFormFieldFocus} from '../../../../packages/mobile-ui/FormScrollView';
 import {ScreenHeader} from '../components/ScreenHeader';
+import {ProLoader} from '../components/ProLoader';
 import React, {useEffect, useRef, useState} from 'react';
 import {StateDistrictPicker} from '../../../../packages/mobile-geography/StateDistrictPicker';
 import {
-  ActivityIndicator,
   Pressable,
   StyleSheet,
   Text,
@@ -46,7 +46,7 @@ type ProfileResponse = {
     baseLatitude?: number;
     baseLongitude?: number;
     serviceCategories: string[];
-    startingPrice?: number;
+    startingPricePaisa?: number;
     isAvailable: boolean;
     portfolioItems?: {id: string; title: string; description?: string; imageUrl: string}[];
     engineerProfile?: null | {
@@ -54,7 +54,7 @@ type ProfileResponse = {
       institution: string;
       graduationYear: number;
       licenseNumber?: string;
-      consultationFee?: number;
+      consultationFeePaisa?: number;
       specializations: {specializationId: string}[];
     };
   };
@@ -139,13 +139,8 @@ export function ProfessionalSetupScreen() {
         : '',
     );
     setLicenseNumber(profile.engineerProfile?.licenseNumber ?? '');
-    setPrice(
-      String(
-        engineer
-          ? profile.engineerProfile?.consultationFee ?? ''
-          : profile.startingPrice ?? '',
-      ),
-    );
+    const savedPaisa = engineer ? profile.engineerProfile?.consultationFeePaisa : profile.startingPricePaisa;
+    setPrice(savedPaisa == null ? '' : String(savedPaisa / 100));
   }, [
     categories.data,
     engineer,
@@ -188,7 +183,7 @@ export function ProfessionalSetupScreen() {
       if (!coordinates) {
         throw new ApiError(400, 'Find your work area before submitting.');
       }
-      const amount = price.trim() ? Number(price) : undefined;
+      const amount = price.trim() ? Math.round(Number(price) * 100) : undefined;
       return api.put('/professionals/me', {
         kind: engineer ? 'engineer' : 'service-provider',
         fullName: fullName.trim(),
@@ -207,9 +202,9 @@ export function ProfessionalSetupScreen() {
               institution: institution.trim(),
               graduationYear: Number(graduationYear),
               licenseNumber: licenseNumber.trim() || undefined,
-              consultationFee: amount,
+              consultationFeePaisa: amount,
             }
-          : {serviceCategories: selected, startingPrice: amount}),
+          : {serviceCategories: selected, startingPricePaisa: amount}),
       });
     },
     onSuccess: async () => {
@@ -241,8 +236,7 @@ export function ProfessionalSetupScreen() {
   if (profileQuery.isPending) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" color={Colors.navyMid} />
-        <Text style={styles.help}>Loading your profile…</Text>
+        <ProLoader size={52} label="Loading your profile…" />
       </View>
     );
   }
@@ -310,6 +304,8 @@ export function ProfessionalSetupScreen() {
           />
           <View style={styles.locationActions}>
             <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Find this area"
               disabled={locationBusy}
               onPress={() => findLocation(false)}
               style={styles.secondary}>
@@ -321,6 +317,8 @@ export function ProfessionalSetupScreen() {
               <Text style={styles.secondaryText}>Find this area</Text>
             </Pressable>
             <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Use my location"
               disabled={locationBusy}
               onPress={() => findLocation(true)}
               style={styles.secondary}>
@@ -348,10 +346,9 @@ export function ProfessionalSetupScreen() {
           Choose every approved area that applies to your work.
         </Text>
         {categories.isPending || specializations.isPending ? (
-          <ActivityIndicator
-            color={Colors.navyMid}
-            style={styles.catalogLoading}
-          />
+          <View style={styles.catalogLoading}>
+            <ProLoader size={30} />
+          </View>
         ) : (
           <View style={styles.chips}>
             {choices.map(item => (

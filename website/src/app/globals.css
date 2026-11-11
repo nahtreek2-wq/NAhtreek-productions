@@ -1,17 +1,18 @@
 @import "tailwindcss";
 /* ============ NAHTREEK design system v2 ============
-   Ink navy + Home-app taxi-yellow (#FFC107 family) on paper.
+   Ink navy + BrandYellow ramp (logo-checked) on paper.
    Display headlines in Archivo, body in Inter. Sharp, confident,
    engineered. Accent tokens mirror ClientColors in the Home app. */
 :root {
   --navy: #0b2d5b;
   --navy-deep: #061a36;
   --navy-ink: #0a2547;
-  --accent-yellow: #FFC107;
+  --accent-yellow: #F5B82E;
   --accent-yellow-action: #7A6100;
-  --accent-yellow-hover: #E5A800;
-  --accent-yellow-soft: #FFF6DD;
-  --amber-glow: #FFC107;
+  --accent-yellow-hover: #D99A12;
+  --accent-yellow-soft: #FFF5D9;
+  --accent-yellow-border: #E8C66F;
+  --amber-glow: #F5B82E;
   --surface: #fff;
   --canvas: #f7f9fc;
   --subtle: #eef2f7;

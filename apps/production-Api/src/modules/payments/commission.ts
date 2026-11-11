@@ -1,5 +1,6 @@
 // At-home collection economics, dependency-free so journey and request
 // flows can enforce dues without importing the payments service.
+import {PenaltyStatus} from '@prisma/client';
 export const PLATFORM_FEE_BPS = 1000; // 10% standard commission
 export const MEMBER_FEE_BPS = 700; // 7% for active Pro members
 export const DUES_BLOCK_Paisa = 50000; // ₹500 unsettled commission blocks new accepts
@@ -20,9 +21,9 @@ export function plusDiscountPaisa(amountPaisa: number) {
 }
 
 type DuesReader = {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   payment: {aggregate: (...args: any[]) => Promise<{_sum: {platformFeePaisa?: number | null}}>};
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   professionalPenalty: {aggregate: (...args: any[]) => Promise<{_sum: {amountPaisa?: number | null}}>};
 };
 
@@ -41,7 +42,7 @@ export async function unsettledDuesPaisa(db: DuesReader, professionalProfileId: 
       _sum: {platformFeePaisa: true},
     }), {_sum: {}}),
     safeAggregate<{_sum: {amountPaisa?: number | null}}>(() => db.professionalPenalty.aggregate({
-      where: {professionalProfileId, status: 'PENDING'},
+      where: {professionalProfileId, status: PenaltyStatus.PENDING},
       _sum: {amountPaisa: true},
     }), {_sum: {}}),
   ]);
@@ -49,7 +50,7 @@ export async function unsettledDuesPaisa(db: DuesReader, professionalProfileId: 
 }
 
 type MembershipReader = {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   membership: {findUnique: (...args: any[]) => Promise<{status: string; currentPeriodEnd: Date | null} | null>};
 };
 

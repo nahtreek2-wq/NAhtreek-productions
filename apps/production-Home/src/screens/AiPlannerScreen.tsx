@@ -14,6 +14,7 @@ import {
   View,
 } from 'react-native';
 import Animated, {FadeInDown, ReduceMotion} from 'react-native-reanimated';
+import {Motion, stagger} from '../../../../packages/mobile-ui/motion';
 import {useQueryClient} from '@tanstack/react-query';
 import {launchImageLibrary} from 'react-native-image-picker';
 import Voice from '@react-native-voice/voice';
@@ -44,6 +45,8 @@ import {
   type AiSubscriptionView,
 } from '../services/aiBilling';
 import {inr, inrMonth} from '../utils/format';
+import {CheckoutCancelledError, checkoutContact, checkoutEmail} from '../../../../packages/mobile-booking/razorpayGateway';
+import {useCheckoutWatchdog} from '../../../../packages/mobile-booking/useCheckoutWatchdog';
 import {setAiBookingPrefill} from '../services/aiBookingPrefill';
 import {isApiConfigured} from '../services/config';
 import {runtimeConfig} from '../config/runtime';
@@ -200,7 +203,7 @@ function ProjectChoice({project, index, busy, selected, onPress}: {
   onPress: () => void;
 }) {
   return (
-    <Animated.View entering={FadeInDown.duration(280).delay(Math.min(index * 45, 225)).reduceMotion(ReduceMotion.System)} style={styles.choiceOuter}>
+    <Animated.View entering={FadeInDown.duration(Motion.entrance).delay(stagger(index)).reduceMotion(ReduceMotion.System)} style={styles.choiceOuter}>
         <Pressable
           style={({pressed}) => [styles.choice, pressed && styles.choicePressed]}
           accessibilityRole="button"
@@ -255,7 +258,21 @@ export function AiPlannerScreen() {
     : 'Consultation discounts on engineer bookings';
   const [paywalled, setPaywalled] = useState(false);
   const [subscribing, setSubscribing] = useState(false);
+  const [checkoutStalled, setCheckoutStalled] = useState(false);
+  const [checkoutAttempt, setCheckoutAttempt] = useState(0);
+  const subscribeBusy = subscribing && !checkoutStalled;
   const [activating, setActivating] = useState(false);
+  const [activationAttempt, setActivationAttempt] = useState(0);
+  const [checkingNow, setCheckingNow] = useState(false);
+  const activationToken = useRef(0);
+  const screenMounted = useRef(true);
+  useEffect(() => {
+    screenMounted.current = true;
+    return () => {
+      screenMounted.current = false;
+      activationToken.current += 1;
+    };
+  }, []);
   const [detailsExpanded, setDetailsExpanded] = useState(false);
   const keyboardScroll = useFormKeyboardScroll(28);
   const scroll = keyboardScroll.scrollRef;
@@ -364,17 +381,26 @@ export function AiPlannerScreen() {
 
   // After a successful GPay payment the first charge still needs seconds to
   // land at Razorpay. Poll confirm (then the plain status as a webhook may
-  // have flipped it) instead of stranding the user on an error.
+  // have flipped it) instead of stranding the user on an error. The loop
+  // reports live progress and yields to manual checks — a dead 40s wait
+  // with disabled buttons reads as a frozen screen.
+  const ACTIVATION_CHECKS = 10;
   const pollActivation = async () => {
-    for (let attempt = 0; attempt < 10; attempt += 1) {
+    const token = activationToken.current;
+    const alive = () => screenMounted.current && activationToken.current === token;
+    for (let attempt = 1; attempt <= ACTIVATION_CHECKS; attempt += 1) {
       await new Promise(resolve => setTimeout(resolve, 4000));
+      if (!alive()) return;
+      setActivationAttempt(attempt);
       try {
         const view = await confirmAiSubscription();
+        if (!alive()) return;
         applyBilling(view);
         setActivating(false);
         setPaywalled(false);
         return;
       } catch (cause) {
+        if (!alive()) return;
         if (!isConfirmingError(cause)) {
           setActivating(false);
           setError(
@@ -386,8 +412,10 @@ export function AiPlannerScreen() {
         }
       }
     }
+    if (!alive()) return;
     try {
       const view = await fetchAiSubscription();
+      if (!alive()) return;
       applyBilling(view);
       if (view.effective) {
         setActivating(false);
@@ -397,23 +425,76 @@ export function AiPlannerScreen() {
     } catch {
       // Fall through to the wait-and-reopen message below.
     }
+    if (!alive()) return;
     setActivating(false);
     setError(
       'Payment is still confirming at Razorpay. Wait a minute, then reopen this screen — do not pay again.',
     );
   };
 
+  // Last-resort recovery for a lost checkout result: if the user is back on
+  // this screen with the subscribe promise still pending, the result never
+  // arrived — reconcile instead of sitting disabled forever. A late real
+  // result still flows through confirm below, so this can never
+  // double-charge or swallow a success.
+  useCheckoutWatchdog(subscribing && !checkoutStalled, () => {
+    void (async () => {
+      try {
+        const current = await fetchAiSubscription();
+        if (current.effective) {
+          applyBilling(current);
+          setPaywalled(false);
+          return;
+        }
+      } catch {
+        // Fall through to the retryable stall message below.
+      }
+      setCheckoutStalled(true);
+    })();
+  }, checkoutAttempt);
+  // Impatient users get a real button instead of a dead wait: one extra
+  // confirm right now. A success settles immediately; anything else leaves
+  // the loop running — the tap can never double-charge or break it.
+  const checkActivationNow = () => {
+    if (checkingNow) return;
+    setCheckingNow(true);
+    void (async () => {
+      try {
+        const view = await confirmAiSubscription();
+        if (!screenMounted.current) return;
+        applyBilling(view);
+        if (view.effective) {
+          activationToken.current += 1;
+          setActivating(false);
+          setPaywalled(false);
+        }
+      } catch {
+        // Still confirming or unreachable: the background loop keeps going.
+      } finally {
+        if (screenMounted.current) setCheckingNow(false);
+      }
+    })();
+  };
   const subscribe = async () => {
+    setCheckoutStalled(false);
+    setCheckoutAttempt(attempt => attempt + 1);
     setSubscribing(true);
     setError('');
     try {
-      const view = await subscribeAi();
+      const view = await subscribeAi({contact: checkoutContact(user?.phoneNumber), email: checkoutEmail(user?.email)});
       applyBilling(view);
       setPaywalled(false);
     } catch (cause) {
       if (isConfirmingError(cause)) {
+        activationToken.current += 1;
+        setActivationAttempt(0);
         setActivating(true);
         void pollActivation();
+        return;
+      }
+      // Backing out of checkout is neutral, not an error banner.
+      if (cause instanceof CheckoutCancelledError) {
+        setError('');
         return;
       }
       setError(
@@ -742,19 +823,27 @@ export function AiPlannerScreen() {
         keyboardDismissMode={keyboardScroll.keyboardDismissMode}
         automaticallyAdjustKeyboardInsets>
         {activating ? (
-          <View style={styles.billingRow}>
-            <ActivityIndicator size="small" color={Colors.navyMid} />
-            <Text style={styles.billingQuota}>Payment received — activating Plus…</Text>
+          <View style={styles.activatingBox}>
+            <View style={styles.billingRow}>
+              <ActivityIndicator size="small" color={Colors.navyMid} />
+              <Text style={styles.billingQuota}>
+                Payment received — activating Plus… {activationAttempt > 0 ? `Check ${activationAttempt} of ${ACTIVATION_CHECKS}…` : ''}
+              </Text>
+            </View>
+            <Pressable accessibilityRole="button" accessibilityLabel="Check activation now"
+              disabled={checkingNow} onPress={checkActivationNow} hitSlop={8}>
+              <Text style={styles.billingCancel}>{checkingNow ? 'Checking…' : 'Check now'}</Text>
+            </Pressable>
           </View>
         ) : billing?.effective ? (
           <View style={styles.billingRow}>
             <Text style={styles.billingActive}>NAHTREEK Plus active</Text>
             {billing.cancelAtPeriodEnd ? (
               <>
-                <Text style={styles.billingQuota}>Plus ends{plusEndDate ? ` ${plusEndDate}` : ''} — new cycle starts then</Text>
+                <Text style={styles.billingQuota} numberOfLines={2}>Plus cancelled — active until{plusEndDate ? ` ${plusEndDate}` : ' the period end'}</Text>
                 <Pressable accessibilityRole="button" accessibilityLabel="Resubscribe to Plus"
-                  onPress={() => void subscribe()} hitSlop={8} disabled={subscribing}>
-                  <Text style={styles.billingCancel}>{subscribing ? 'Opening…' : 'Resubscribe'}</Text>
+                  onPress={() => void subscribe()} hitSlop={8} disabled={subscribeBusy}>
+                  <Text style={styles.billingCancel}>{subscribeBusy ? 'Opening…' : 'Resubscribe'}</Text>
                 </Pressable>
               </>
             ) : (
@@ -786,12 +875,15 @@ export function AiPlannerScreen() {
               <Text style={styles.paywallBenefit}>✓ Faster home service — late pros pay penalties</Text>
               <Text style={styles.paywallBenefit}>✓ {consultPerk}</Text>
             </View>
+            {checkoutStalled ? (
+              <Text style={styles.stalledNote}>Checkout was interrupted — nothing was charged. Tap Subscribe to try again.</Text>
+            ) : null}
             <Button
               label={`Subscribe · ${plusPrice}`}
               loadingLabel="Opening checkout…"
               onPress={() => void subscribe()}
-              loading={subscribing || activating}
-              disabled={subscribing || activating}
+              loading={subscribeBusy || activating}
+              disabled={subscribeBusy || activating}
             />
             {runtimeConfig.environment !== 'production' ? (
               <Button
@@ -827,12 +919,15 @@ export function AiPlannerScreen() {
                     {quota ?? 'Free chats included'} — then unlimited chats, project plans, photo analysis, faster service with late penalties, engineer consult discounts and priority reviews.
                   </Text>
                 </View>
+                {checkoutStalled ? (
+                  <Text style={styles.stalledNote}>Checkout was interrupted — nothing was charged. Tap Subscribe to try again.</Text>
+                ) : null}
                 <Button
                   label="Subscribe"
                   loadingLabel="Opening checkout…"
                   onPress={() => void subscribe()}
-                  loading={subscribing || activating}
-                  disabled={subscribing || activating}
+                  loading={subscribeBusy || activating}
+                  disabled={subscribeBusy || activating}
                 />
                 {runtimeConfig.environment !== 'production' ? (
                   <Button
@@ -1198,6 +1293,8 @@ function PlanCard({
         <Pressable
           key={recommendation.label}
           style={styles.recommendation}
+          accessibilityRole="button"
+          accessibilityLabel={recommendation.label}
           onPress={() => onAction(recommendation)}>
           <Text style={styles.recommendationText}>{recommendation.label}</Text>
           <Icon name={ICONS.chevronRight} color={Colors.navyDeep} />
@@ -1230,7 +1327,7 @@ function PlanCard({
 }
 
 const styles = StyleSheet.create({
-  root: {flex: 1, backgroundColor: '#F3F5F8'},
+  root: {flex: 1, backgroundColor: ClientColors.lightBackground},
   scroll: {flex: 1},
   content: {padding: 20, paddingBottom: 40, gap: 16},
   strip: {
@@ -1281,9 +1378,12 @@ const styles = StyleSheet.create({
     alignSelf: 'stretch',
     paddingVertical: 2,
     marginBottom: Spacing.md,
+    gap: Spacing.sm,
   },
-  billingActive: {...Typography.caption, fontWeight: '700', color: Colors.success},
-  billingQuota: {...Typography.caption, color: Colors.slate600},
+  billingActive: {...Typography.caption, fontWeight: '700', color: Colors.success, flexShrink: 0},
+  billingQuota: {...Typography.caption, color: Colors.slate600, flex: 1},
+  activatingBox: {gap: 2, backgroundColor: Colors.successBg, padding: 12, borderRadius: 12,
+    alignSelf: 'stretch', marginBottom: Spacing.md},
   billingCancel: {...Typography.caption, fontWeight: '700', color: Colors.slate600, textDecorationLine: 'underline'},
   paywall: {
     backgroundColor: Colors.surface,
@@ -1296,6 +1396,8 @@ const styles = StyleSheet.create({
   },
   paywallTitle: {...Typography.subtitle, color: ClientColors.primaryNavy},
   paywallCopy: {...Typography.body, color: Colors.slate600, lineHeight: 21},
+  stalledNote: {fontSize: 14, lineHeight: 20, fontWeight: '700', color: Colors.warning,
+    backgroundColor: Colors.warningBg, padding: 12, borderRadius: 12},
   paywallBenefits: {gap: 6},
   paywallBenefit: {...Typography.body, color: Colors.slate800, lineHeight: 20, fontWeight: '600'},
   proCard: {backgroundColor: Colors.surface, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: ClientColors.border, gap: 12, alignSelf: 'stretch'},

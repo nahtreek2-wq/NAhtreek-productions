@@ -16,14 +16,17 @@ import {
   Spacing,
   BorderRadius,
 } from '@nahtreek/design-system';
-import {AppHeader, Button, Card, Icon, ICONS, Input, SectionHeader} from '../components/ui';
+import {AppHeader, Button, Card, EmptyState, ErrorState, Icon, ICONS, Input, SectionHeader} from '../components/ui';
+import {MessageRowSkeleton} from '../components/SkeletonLoader';
+import {SupportThread, type SupportReplyView} from '../../../../packages/mobile-booking/SupportThread';
 import {api} from '../services/apiClient';
 import {useSessionStore} from '../stores/session';
 import {useToast} from '../stores/toast';
 import type {RootStackParamList} from '../navigation/types';
 
 type SupportTicket = {id: string; subject: string; message: string; bookingRef: string | null;
-  status: 'OPEN' | 'ANSWERED' | 'RESOLVED'; adminReply: string | null; createdAt: string};
+  status: 'OPEN' | 'ANSWERED' | 'RESOLVED'; adminReply: string | null; createdAt: string;
+  replies?: SupportReplyView[]};
 
 const TICKET_STATUS: Record<SupportTicket['status'], string> = {
   OPEN: 'Open — support will reply here',
@@ -79,6 +82,20 @@ export function HelpScreen() {
     onError: error => toast(error instanceof Error ? error.message : 'Could not send your request.', 'error'),
   });
   const valid = subject.trim().length >= 4 && message.trim().length >= 10;
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [replyingTo, setReplyingTo] = useState<string | null>(null);
+  const followUp = useMutation({
+    mutationFn: (input: {ticketId: string; message: string}) =>
+      api.post(`/support/tickets/${input.ticketId}/replies`, {message: input.message}),
+    onSuccess: (_data, input) => {
+      setDrafts(current => ({...current, [input.ticketId]: ''}));
+      setReplyingTo(null);
+      void cache.invalidateQueries({queryKey: ['support-tickets']});
+      toast('Reply sent. Support will follow up here.', 'success');
+    },
+    onError: error => toast(error instanceof Error ? error.message : 'Could not send your reply.', 'error'),
+    onSettled: () => setReplyingTo(null),
+  });
 
   return (
     <View style={styles.container}>
@@ -98,6 +115,9 @@ export function HelpScreen() {
           <Card key={f.q} style={styles.faq}>
             <TouchableOpacity
               style={styles.faqHead}
+              accessibilityRole="button"
+              accessibilityLabel={f.q}
+              accessibilityState={{expanded: open === i}}
               onPress={() => setOpen(open === i ? null : i)}>
               <Text style={styles.faqQ}>{f.q}</Text>
               <Icon
@@ -135,29 +155,54 @@ export function HelpScreen() {
           <>
             <SectionHeader title="My support requests" />
             {tickets.isPending ? (
-              <Card style={styles.faq}><Text style={styles.faqA}>Loading your requests…</Text></Card>
+              <View accessibilityLabel="Loading your requests">
+                <MessageRowSkeleton />
+                <MessageRowSkeleton />
+              </View>
             ) : tickets.isError ? (
-              <Card style={styles.faq}>
-                <Text style={styles.faqA}>Could not load your requests.</Text>
-                <View style={styles.loginGap}>
-                  <Button label={tickets.isFetching ? 'Checking…' : 'Try again'} variant="secondary"
-                    onPress={() => void tickets.refetch()} />
-                </View>
-              </Card>
-            ) : tickets.data?.length ? tickets.data.map(ticket => (
+              <ErrorState
+                title="Could not load your requests"
+                message="Check your connection and try again."
+                actionLabel={tickets.isFetching ? 'Checking…' : 'Try again'}
+                onAction={() => void tickets.refetch()}
+              />
+            ) : tickets.data?.length ? tickets.data.map(ticket => {
+              const draft = drafts[ticket.id] ?? '';
+              const sending = followUp.isPending && replyingTo === ticket.id;
+              return (
               <Card key={ticket.id} style={styles.faq}>
                 <Text style={styles.faqQ}>{ticket.subject}</Text>
                 <Text style={styles.ticketStatus}>{TICKET_STATUS[ticket.status]}</Text>
                 <Text style={styles.faqA}>{ticket.message}</Text>
-                {ticket.adminReply ? (
+                {ticket.replies ? (
+                  <SupportThread replies={ticket.replies} />
+                ) : ticket.adminReply ? (
                   <View style={styles.replyBox}>
                     <Text style={styles.replyLabel}>Support reply</Text>
                     <Text style={styles.replyText}>{ticket.adminReply}</Text>
                   </View>
                 ) : null}
+                <View style={styles.replyRow}>
+                  <View style={styles.replyInput}>
+                    <Input value={draft} onChangeText={text => setDrafts(current => ({...current, [ticket.id]: text}))}
+                      placeholder="Write a follow-up…" maxLength={2000} multiline
+                      accessibilityLabel={`Reply to ${ticket.subject}`} />
+                  </View>
+                  <TouchableOpacity accessibilityRole="button"
+                    accessibilityLabel={sending ? 'Sending reply' : `Send reply to ${ticket.subject}`}
+                    disabled={draft.trim().length < 2 || sending}
+                    onPress={() => { setReplyingTo(ticket.id); followUp.mutate({ticketId: ticket.id, message: draft.trim()}); }}
+                    style={[styles.sendButton, (draft.trim().length < 2 || sending) && {opacity: 0.5}]}>
+                    <Icon name={ICONS.send} size={18} color={Colors.white} />
+                  </TouchableOpacity>
+                </View>
               </Card>
-            )) : (
-              <Card style={styles.faq}><Text style={styles.faqA}>No support requests yet. Replies from the team appear here.</Text></Card>
+              );
+            }) : (
+              <EmptyState
+                title="No support requests yet"
+                message="Replies from the team appear here."
+              />
             )}
           </>
         ) : null}
@@ -242,6 +287,23 @@ const styles = StyleSheet.create({
   replyText: {
     ...Typography.body,
     color: Colors.slate800,
+  },
+  replyRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: Spacing.sm,
+    marginTop: Spacing.sm,
+  },
+  replyInput: {
+    flex: 1,
+  },
+  sendButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: Colors.navyDeep,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   faqHead: {
     flexDirection: 'row',

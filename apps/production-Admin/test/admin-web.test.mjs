@@ -6,6 +6,8 @@ import { IDLE_TIMEOUT_MS, IDLE_WARN_MS, loginCooldownMs } from "../src/js/auth.j
 import { safeHttpUrl, timeAgo } from "../src/js/dom.js";
 import { availablePaymentActions, formatPaisa as formatPaymentPaisa, moneyConfirmWord, paymentStatusLabel } from "../src/js/payments.js";
 import { aiEngineLabel, aiSummaryCards, formatPaisa as formatMembershipPaisa, membershipStatusLabel } from "../src/js/memberships.js";
+import { replyAuthorLabel, ticketStatusLabel } from "../src/js/tickets.js";
+import { formatPaisa as formatPayoutPaisa, payoutStatusLabel } from "../src/js/payouts.js";
 
 test("ApiClient sends the administrator bearer token", async () => {
   let received;
@@ -82,6 +84,8 @@ test("build contains official branding and generated environment config", async 
   assert.match(html, /OPERATIONS OVERVIEW/);
   assert.match(html, /id="menu-toggle"/);
   assert.match(html, /data-view="activity"/);
+  assert.match(html, /data-view="tickets"/);
+  assert.match(html, /id="ticket-reply-form"/);
   assert.match(html, /data-view="settings"/);
   assert.match(html, /id="user-edit-dialog"/);
   assert.doesNotMatch(html, /__NAHTREEK_API_ORIGIN__/);
@@ -302,4 +306,32 @@ test("ApiClient clears money caches by path prefix after mutations", async () =>
   api.clearCache("/payments");
   await api.get("/payments/admin/summary", { ttl: 60_000 });
   assert.equal(calls, 2);
+});
+
+test("support desk labels statuses and authors plainly", () => {
+  assert.equal(ticketStatusLabel("OPEN"), "Open");
+  assert.equal(ticketStatusLabel("ANSWERED"), "Answered");
+  assert.equal(ticketStatusLabel("RESOLVED"), "Resolved");
+  assert.equal(ticketStatusLabel("WEIRD"), "WEIRD");
+  assert.equal(replyAuthorLabel("ADMIN"), "Support");
+  assert.equal(replyAuthorLabel("USER"), "User");
+});
+
+test("payout desk labels statuses and formats rupees", () => {
+  assert.equal(payoutStatusLabel("PENDING"), "Pending");
+  assert.equal(payoutStatusLabel("NOT_SUBMITTED"), "Not submitted");
+  assert.equal(payoutStatusLabel("SUSPENDED"), "Suspended");
+  assert.equal(formatPayoutPaisa(19999), "₹200");
+  assert.equal(formatPayoutPaisa(250000), "₹2,500");
+});
+
+test("build ships the payouts view", async () => {
+  const html = await readFile(new URL("../dist/index.html", import.meta.url), "utf8");
+  assert.match(html, /data-view="payouts"/);
+  assert.match(html, /id="payouts-view"/);
+  assert.match(html, /id="payout-status-filter"/);
+  assert.match(html, /id="payout-list"/);
+  assert.match(html, /id="payout-detail"/);
+  assert.match(html, /id="payout-queue"/);
+  assert.match(html, /EARNINGS QUEUE/);
 });
