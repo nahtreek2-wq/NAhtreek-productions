@@ -13,14 +13,14 @@ export default function Image() {
           flexDirection: "column",
           justifyContent: "center",
           padding: "80px",
-          background: "#081F3D",
+          background: "#111F35",
           color: "white",
         }}
       >
         <div
           style={{
             fontSize: 28,
-            color: "#F5B82E",
+            color: "#C4A639",
             letterSpacing: 6,
             display: "flex",
           }}
@@ -41,7 +41,7 @@ export default function Image() {
           style={{
             fontSize: 78,
             fontWeight: 700,
-            color: "#F5B82E",
+            color: "#C4A639",
             display: "flex",
           }}
         >
